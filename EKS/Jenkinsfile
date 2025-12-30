@@ -26,14 +26,42 @@ environment {
 
             }
         }
-        stage ('Approval') {
+        stage('Approval'){
             steps{
                 script{
                     def plan = readFile 'eks/tfplan.txt'
-                    input message: "Do you want to proceed with terraform actions..?"
+                    input message: "Do you want to proceed with the Terraform action?",
+                    parameters: [text(name: 'Plan', description: 'Please review the plan', defaultValue: plan)]
                 }
             }
+        }
 
+        stage('Apply or Destroy'){
+            when {
+                expression{
+                    return  params.terraformAction == 'apply' || params.terraformAction == 'destroy'
+                } 
+            }
+            steps{
+                script{
+                    if (params.terraformAction == 'apply'){
+                        sh 'pwd; cd eks/; terraform apply -input=false tfplan'
+                    }
+                    else if (params.terraformAction == 'destroy'){
+                        sh 'pwd; cd eks/; terraform destroy -auto-approve'
+                    }
+                }
+            }
+        }
+
+        stage('Backup-Stage'){
+            steps{
+                sh '''
+                    pwd 
+                    cd eks/
+                    aws s3 cp terraform.tfstate s3://itkannadogaru-terraform-tf-backup/Chat-bot/dev-eks/
+                '''
+            }
         }
     }
 
